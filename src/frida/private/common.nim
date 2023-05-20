@@ -51,6 +51,7 @@ type
   GFunc* = proc(data, user_data: pointer)
   GHashFunc* = proc(key: pointer): uint32
   GHFunc* = proc(key, value, user_data: pointer)
+  GHRFunc* = proc(key, value, user_data: pointer)
 
 
   GJsonNode* = object

@@ -1,7 +1,7 @@
 #when not compileOption("threads"):
 #  {.error: "Frida gumjs library require --threads:on to run".}
 {.experimental: "codeReordering".}
-{.passL: "-lfrida-gumjs -latomic -lresolv".}
+{.passL: "-lfrida-gum -latomic -lresolv".}
 
 import ./private/common
 export common
@@ -18,11 +18,10 @@ const
 
 type
   #[ gumdef.h ]#
+  GumOS* = uint
   GumCpuContext* = object
   GumAddress* = uint64
-  GumMemoryRange* = object
-    baseAddress*: GumAddress
-    size*: csize_t
+
   GumCpuType* = enum
     GUM_CPU_INVALID
     GUM_CPU_IA32
@@ -221,12 +220,14 @@ type
 
   #[ gummemory.h ]#
   GumPtrauthSupport* = uint
-  GumRwxSupport
-  GumMemoryOperation
+  GumRwxSupport* = uint
+  GumMemoryOperation* = uint
 
   GumAddressSpec* = object
   GumMatchPattern* = object
   GumMemoryRange* = object
+    baseAddress*: GumAddress
+    size*: csize_t
 
   GumMemoryIsNearFunc* = proc(memory: pointer, address: pointer): bool
 
@@ -239,14 +240,39 @@ type
     GUM_PAGE_WRITE     = (1 shl 1)
     GUM_PAGE_EXECUTE   = (1 shl 2)
 
+  #{ gummemoryaccessmonitor.h ]#
+  GumMemoryAccessMonitor* = object
+  GumMemoryAccessDetails* = object
+
+  GumMemoryAccessNotify* = proc(monitor: ptr GumMemoryAccessMonitor, details: ptr GumMemoryAccessDetails, userData: pointer)
+
+  #[ gummemorymap.h ]#
+  GumMemoryMap* = object
+
+  #[ gummetalarray.h ]#
+  GumMetalArray* = object
+
+  #[ gummetalhash.h ]#
+  GumMetalHashTable* = object
+  GumMetalHashTableIter* = object
+
+  #[ gummoduleapiresolver.h ]#
+  GumModuleApiResolver* = object
+
+  #[ gummodulemap.h ]#
+  GumModuleMap* = object
+
+  GumModuleMapFilterFunc* = proc(details: ptr GumModuleDetails, userData: pointer): bool
+
   #[ gumprocess.h ]#
+  GumProcessId* = uint
   GumThreadId* = csize_t
   GumResolveSymbolContext* = object
   GumThreadDetails* = object
   GumModuleDetails* = object
   GumImportType* = uint
   GumExportType* = uint
-  GumSymbolTyp* = uint
+  GumSymbolType* = uint
   GumImportDetails* = object
   GumExportDetails* = object
   GumSymbolDetails* = object
@@ -290,6 +316,37 @@ type
     limeNumber*: uint
     column*: uint
 
+  #[ gumspinlock.h ]#
+  GumSpinlock* = object
+
+  #[ gumstalker.h ]#
+  GumStalker* = object
+  GumStalkerTransformer* = object
+  GumDefaultStalkerTransformer* = object
+  GumCallbackStalkerTransformer* = object
+  GumStalkerObserver* = object
+  GumStalkerIterator* = object
+  GumStalkerOutput* = object
+  GumBackpatch* = object
+  GumBackpatchInstruction* = object
+
+  GumStalkerWriter* = object
+  GumProbeId* = uint
+  GumCallDetails* = object
+
+  GumStalkerIncrementFunc* = proc(self: ptr GumStalkerObserver)
+  GumStalkerNotifyBackpatchFunc* = proc(self: ptr GumStalkerObserver, packpath: ptr GumBackpatch, size: csize_t)
+  GumStalkerSwitchCallbackFunc* = proc(self: ptr GumStalkerObserver, fromAddress: pointer, startAddress: pointer, fromInsn: pointer, target: ptr pointer)
+  GumStalkerTransformerCallback* = proc(iter: ptr GumStalkerIterator, output: ptr GumStalkerOutput, userData: pointer)
+  GumStalkerCallout* = proc(cpuContext: ptr GumCpuContext, userData: pointer)
+  GumCallProbeCallback* = proc(details: ptr GumCallDetails, userData: pointer)
+
+  #[ gumsymbolutil.h ]#
+  GumDebugSymbolDetails* = object
+
+  #{ gumtls.h ]#
+  GumTlsKey* = object
+
 {.push importc: "$1", cdecl, discardable.}
 
 #[ gum.h ]#
@@ -314,15 +371,11 @@ proc gum_backtracer_make_fuzzy*(): ptr GumBacktracer
 proc gum_backtracer_generate*(self: ptr GumBacktracer, cpuContext: ptr GumCpuContext, returnAddresses: ptr GumReturnAddressArray)
 proc gum_backtracer_generate_with_limit*(self: ptr GumBacktracer, cpuContext: ptr GumCpuContext, returnAddresses: ptr GumReturnAddressArray, limit: uint)
 
-#[ gumreturnaddress.h ]#
-proc gum_return_address_details_from_address*(address: GumReturnAddress, details: ptr GumReturnAddressDetails): bool
-proc gum_return_address_array_is_equal*(array1: ptr GumReturnAddressArray, array2: ptr GumReturnAddressArray): bool
-
 #[ gumcloak.h ]#
 proc gum_cloak_add_thread*(id : GumThreadId)
 proc gum_cloak_remove_thread*(id: GumThreadId)
 proc gum_cloak_has_thread*(id: GumThreadId): bool
-proc gum_cloak_enumerate_threads (fn: GumCloakFoundThreadFunc, userData: pointer)
+proc gum_cloak_enumerate_threads*(fn: GumCloakFoundThreadFunc, userData: pointer)
 
 proc gum_cloak_add_range*(memRange: ptr GumMemoryRange)
 proc gum_cloak_remove_range*(memRange: ptr GumMemoryRange)
@@ -403,7 +456,7 @@ proc gum_darwin_module_image_dup*(other: ptr GumDarwinModuleImage): ptr GumDarwi
 proc gum_darwin_module_image_free*(image: ptr GumDarwinModuleImage)
 
 #[ gumeventsink.h ]#
-proc gum_event_sink_query_mask (self: ptr GumEventSink): GumEventType
+proc gum_event_sink_query_mask*(self: ptr GumEventSink): GumEventType
 proc gum_event_sink_start*(self: ptr GumEventSink)
 proc gum_event_sink_process*(self: ptr GumEventSink, event: ptr GumEvent, cpuContext: ptr GumCpuContext)
 proc gum_event_sink_flush*(self: ptr GumEventSink)
@@ -514,84 +567,256 @@ proc gum_memcpy*(dst: pointer, src: pointer, n: csize_t): pointer
 proc gum_memmove*(dst: pointer, src: pointer, n: csize_t): pointer
 
 #[ gummemory.h]#
-GUM_API void gum_internal_heap_ref (void);
-GUM_API void gum_internal_heap_unref (void);
+proc gum_internal_heap_ref*()
+proc gum_internal_heap_unref*()
 
-GUM_API gpointer gum_sign_code_pointer (gpointer value);
-GUM_API gpointer gum_strip_code_pointer (gpointer value);
-GUM_API GumAddress gum_sign_code_address (GumAddress value);
-GUM_API GumAddress gum_strip_code_address (GumAddress value);
-GUM_API GumPtrauthSupport gum_query_ptrauth_support (void);
-GUM_API guint gum_query_page_size (void);
-GUM_API gboolean gum_query_is_rwx_supported (void);
-GUM_API GumRwxSupport gum_query_rwx_support (void);
-GUM_API gboolean gum_memory_is_readable (gconstpointer address, gsize len);
-GUM_API guint8 * gum_memory_read (gconstpointer address, gsize len,
-    gsize * n_bytes_read);
-GUM_API gboolean gum_memory_write (gpointer address, const guint8 * bytes,
-    gsize len);
-GUM_API gboolean gum_memory_patch_code (gpointer address, gsize size,
-    GumMemoryPatchApplyFunc apply, gpointer apply_data);
-GUM_API gboolean gum_memory_mark_code (gpointer address, gsize size);
+proc gum_sign_code_pointer*(value: pointer): pointer
+proc gum_strip_code_pointer*(value: pointer): pointer
+proc gum_sign_code_address*(value: GumAddress): GumAddress
+proc gum_strip_code_address*(value: GumAddress): GumAddress
+proc gum_query_ptrauth_support*(): GumPtrauthSupport
+proc gum_query_page_size*(): uint
+proc gum_query_is_rwx_supported*(): bool
+proc gum_query_rwx_support*(): GumRwxSupport
+proc gum_memory_is_readable*(address: pointer, len: csize_t): bool
+proc gum_memory_read*(address: pointer, len: csize_t , nBytesRead: ptr csize_t): ptr uint8
+proc gum_memory_write*(address: pointer, bytes: ptr uint8, len: csize_t): bool
+proc gum_memory_patch_code*(address: pointer , size: csize_t, apply: GumMemoryPatchApplyFunc, applyData: pointer): bool
+proc gum_memory_mark_code*(address: pointer, size: csize_t): bool
 
-GUM_API void gum_memory_scan (const GumMemoryRange * range,
-    const GumMatchPattern * pattern, GumMemoryScanMatchFunc func,
-    gpointer user_data);
+proc gum_memory_scan*(memRange: ptr GumMemoryRange, pattern: ptr GumMatchPattern, fb: GumMemoryScanMatchFunc, userData: pointer)
 
-GUM_API GumMatchPattern * gum_match_pattern_new_from_string (
-    const gchar * pattern_str);
-GUM_API GumMatchPattern * gum_match_pattern_ref (GumMatchPattern * pattern);
-GUM_API void gum_match_pattern_unref (GumMatchPattern * pattern);
-GUM_API guint gum_match_pattern_get_size (const GumMatchPattern * pattern);
-GUM_API GPtrArray * gum_match_pattern_get_tokens (
-    const GumMatchPattern * pattern);
+proc gum_match_pattern_new_from_string*(patternStr: cstring): ptr GumMatchPattern
+proc gum_match_pattern_ref*(pattern: ptr GumMatchPattern): ptr GumMatchPattern
+proc gum_match_pattern_unref*(pattern: ptr GumMatchPattern)
+proc gum_match_pattern_get_size*(patter: ptr GumMatchPattern): uint
+proc gum_match_pattern_get_tokens*(pattern: ptr GumMatchPattern): ptr GPtrArray
 
-GUM_API void gum_ensure_code_readable (gconstpointer address, gsize size);
+proc gum_ensure_code_readable*(address: pointer, size: csize_t)
 
-GUM_API void gum_mprotect (gpointer address, gsize size,
-    GumPageProtection prot);
-GUM_API gboolean gum_try_mprotect (gpointer address, gsize size,
-    GumPageProtection prot);
+proc gum_mprotect*(address: pointer, size: csize_t, prot: GumPageProtection)
+proc gum_try_mprotect*(address: pointer, size: csize_t, prot: GumPageProtection): bool
 
-GUM_API void gum_clear_cache (gpointer address, gsize size);
+proc gum_clear_cache*(address: pointer, size: csize_t)
 
-GUM_API guint gum_peek_private_memory_usage (void);
+proc gum_peek_private_memory_usage*(): uint
 
-GUM_API gpointer gum_malloc (gsize size);
-GUM_API gpointer gum_malloc0 (gsize size);
-GUM_API gsize gum_malloc_usable_size (gconstpointer mem);
-GUM_API gpointer gum_calloc (gsize count, gsize size);
-GUM_API gpointer gum_realloc (gpointer mem, gsize size);
-GUM_API gpointer gum_memalign (gsize alignment, gsize size);
-GUM_API gpointer gum_memdup (gconstpointer mem, gsize byte_size);
-GUM_API void gum_free (gpointer mem);
+proc gum_malloc*(size: csize_t): pointer
+proc gum_malloc0*(size: csize_t): pointer
+proc gum_malloc_usable_size*(mem: pointer): csize_t
+proc gum_calloc*(count: csize_t, size: csize_t): pointer
+proc gum_realloc*(mem: pointer, size: csize_t): pointer
+proc gum_memalign*(alignment: csize_t, size: csize_t): pointer
+proc gum_memdup*(mem: pointer, byteSize: csize_t): pointer
+proc gum_free*(mem: pointer)
 
-GUM_API gpointer gum_alloc_n_pages (guint n_pages, GumPageProtection prot);
-GUM_API gpointer gum_try_alloc_n_pages (guint n_pages, GumPageProtection prot);
-GUM_API gpointer gum_alloc_n_pages_near (guint n_pages, GumPageProtection prot,
-    const GumAddressSpec * spec);
-GUM_API gpointer gum_try_alloc_n_pages_near (guint n_pages,
-    GumPageProtection prot, const GumAddressSpec * spec);
-GUM_API void gum_query_page_allocation_range (gconstpointer mem, guint size,
-    GumMemoryRange * range);
-GUM_API void gum_free_pages (gpointer mem);
+proc gum_alloc_n_pages*(nPages: uint, prot: GumPageProtection): pointer
+proc gum_try_alloc_n_pages*(nPages: uint, prot: GumPageProtection): pointer
+proc gum_alloc_n_pages_near*(nPages: uint, prot: GumPageProtection, spec: ptr GumAddressSpec): pointer
+proc gum_try_alloc_n_pages_near*(nPages: uint, prot: GumPageProtection, spec: ptr GumAddressSpec): pointer
+proc gum_query_page_allocation_range*(mem: pointer, size: uint, memRange: ptr GumMemoryRange)
+proc gum_free_pages*(mem: pointer)
 
-GUM_API gpointer gum_memory_allocate (gpointer address, gsize size,
-    gsize alignment, GumPageProtection prot);
-GUM_API gpointer gum_memory_allocate_near (const GumAddressSpec * spec,
-    gsize size, gsize alignment, GumPageProtection prot);
-GUM_API gboolean gum_memory_free (gpointer address, gsize size);
-GUM_API gboolean gum_memory_release (gpointer address, gsize size);
-GUM_API gboolean gum_memory_recommit (gpointer address, gsize size,
-    GumPageProtection prot);
-GUM_API gboolean gum_memory_discard (gpointer address, gsize size);
-GUM_API gboolean gum_memory_decommit (gpointer address, gsize size);
+proc gum_memory_allocate*(address: pointer, size: csize_t, alignment: csize_t, prot: GumPageProtection): pointer
+proc gum_memory_allocate_near*(spec: ptr GumAddressSpec, size: csize_t, alignment: csize_t, prot: GumPageProtection): pointer
+proc gum_memory_free*(address: pointer, size: csize_t): bool
+proc gum_memory_release*(address: pointer, size: csize_t): bool
+proc gum_memory_recommit*(address: pointer, size: csize_t, prot: GumPageProtection): bool
+proc gum_memory_discard*(address: pointer, size: csize_t): bool
+proc gum_memory_decommit*(address: pointer, size: csize_t): bool
 
-GUM_API gboolean gum_address_spec_is_satisfied_by (const GumAddressSpec * spec,
-    gconstpointer address);
+proc gum_address_spec_is_satisfied_by*(spec: ptr GumAddressSpec, address: pointer): bool
 
-GUM_API GumMemoryRange * gum_memory_range_copy (const GumMemoryRange * range);
-GUM_API void gum_memory_range_free (GumMemoryRange * range);
+proc gum_memory_range_copy*(memRange: ptr GumMemoryRange): ptr  GumMemoryRange
+proc gum_memory_range_free*(memRange: ptr GumMemoryRange)
+
+#{ gummemoryaccessmonitor.h ]#
+proc gum_memory_access_monitor_new*(ranges: ptr GumMemoryRange, numRanges: uint, accessMask: GumPageProtection, autoReset: bool, fn: GumMemoryScanMatchFunc, data: pointer, dataDestroy: GDestroyNotify): ptr GumMemoryAccessMonitor
+
+proc gum_memory_access_monitor_enable*(self: ptr GumMemoryAccessMonitor, error: ptr ptr GError): bool
+proc gum_memory_access_monitor_disable*(self: ptr GumMemoryAccessMonitor)
+
+#[ gummemorymap.h ]#
+proc gum_memory_map_new*(prot: GumPageProtection): ptr GumMemoryMap
+
+proc gum_memory_map_contains*(self: ptr GumMemoryMap, memRange: ptr GumMemoryRange): bool
+
+proc gum_memory_map_update*(self: ptr GumMemoryMap)
+
+#[ gummetalarray.h ]#
+proc gum_metal_array_init*(arr: ptr GumMetalArray, elementSize: uint)
+proc gum_metal_array_free*(arr: ptr GumMetalArray)
+
+proc gum_metal_array_element_at*(self: GumMetalArray, index: uint): pointer
+proc gum_metal_array_insert_at*(self: GumMetalArray, index: uint): pointer
+proc gum_metal_array_remove_at*(self: GumMetalArray, index: uint);
+proc gum_metal_array_remove_all*(self: GumMetalArray);
+proc gum_metal_array_append*(self: GumMetalArray): pointer
+
+proc gum_metal_array_get_extents*(self: GumMetalArray, start: ptr pointer, `end`: ptr pointer)
+proc gum_metal_array_ensure_capacity*(self: GumMetalArray, capacity: uint)
+
+#[ gummetalhash.h ]#
+proc gum_metal_hash_table_new*(hashFunc: GHashFunc, keyEqualFunc: GEqualFunc): ptr GumMetalHashTable
+proc gum_metal_hash_table_new_full*(hashFunc: GHashFunc, keyEqualFunc: GEqualFunc, keyDestroyFunc: GDestroyNotify, valueDestroyFunc: GDestroyNotify): ptr GumMetalHashTable
+proc gum_metal_hash_table_destroy*(hashTable: ptr GumMetalHashTable);
+proc gum_metal_hash_table_insert*(hashTable: ptr GumMetalHashTable, key: pointer, value: pointer): bool
+proc gum_metal_hash_table_replace*(hashTable: ptr GumMetalHashTable, key: pointer, value: pointer): bool
+proc gum_metal_hash_table_add*(hashTable: ptr GumMetalHashTable, key: pointer): bool
+proc gum_metal_hash_table_remove*(hashTable: ptr GumMetalHashTable, key: pointer): bool
+proc gum_metal_hash_table_remove_all*(hashTable: ptr GumMetalHashTable)
+proc gum_metal_hash_table_steal*(hashTable: ptr GumMetalHashTable, key: pointer): bool
+proc gum_metal_hash_table_steal_all*(hashTable: ptr GumMetalHashTable)
+proc gum_metal_hash_table_lookup*(hashTable: ptr GumMetalHashTable, key: pointer): pointer
+proc gum_metal_hash_table_contains*(hashTable: ptr GumMetalHashTable, key: pointer): bool
+proc gum_metal_hash_table_lookup_extended*(hashTable: ptr GumMetalHashTable, lookupKey: pointer, origKey: ptr pointer, value: ptr pointer): bool
+proc gum_metal_hash_table_foreach*(hashTable: ptr GumMetalHashTable, fn: GHFunc, userData: pointer);
+proc gum_metal_hash_table_find*(hashTable: ptr GumMetalHashTable, predicate: GHRFunc, userData: pointer): pointer
+proc gum_metal_hash_table_foreach_remove*(hashTable: ptr GumMetalHashTable, fn: GHRFunc, userData: pointer): uint
+proc gum_metal_hash_table_foreach_steal*(hashTable: ptr GumMetalHashTable, fn: GHRFunc, userData: pointer): uint
+proc gum_metal_hash_table_size*(hashTable: ptr GumMetalHashTable): uint
+
+proc gum_metal_hash_table_iter_init*(iter: ptr GumMetalHashTableIter, hashTable: ptr GumMetalHashTable)
+proc gum_metal_hash_table_iter_next*(iter: ptr GumMetalHashTableIter, key: ptr pointer, value: ptr pointer): bool
+proc gum_metal_hash_table_iter_get_hash_table*(iter: ptr GumMetalHashTableIter): ptr GumMetalHashTable
+proc gum_metal_hash_table_iter_remove*(iter: ptr GumMetalHashTableIter)
+proc gum_metal_hash_table_iter_replace*(iter: ptr GumMetalHashTableIter, value: pointer)
+proc gum_metal_hash_table_iter_steal*(iter: ptr GumMetalHashTableIter)
+
+proc gum_metal_hash_table_ref*(hashTable: ptr GumMetalHashTable): ptr GumMetalHashTable
+proc gum_metal_hash_table_unref*(hashTable: ptr GumMetalHashTable)
+
+#[ gummoduleapiresolver.h ]#
+proc gum_module_api_resolver_new*(): GumApiResolver
+
+#[ gummodulemap.h ]#
+proc gum_module_map_new*(): ptr GumModuleMap
+proc gum_module_map_new_filtered*(fn: GumModuleMapFilterFunc, data: pointer, dataDestroy: GDestroyNotify): ptr GumModuleMap
+
+proc gum_module_map_find*(self: ptr GumModuleMap, address: GumAddress): ptr  GumModuleDetails
+
+proc gum_module_map_update*(self: ptr GumModuleMap)
+
+proc gum_module_map_get_values*(self: ptr GumModuleMap): ptr GArray
+
+#[ gumprocess.h]#
+proc gum_process_get_native_os*(): GumOS
+proc gum_process_get_code_signing_policy*(): GumCodeSigningPolicy
+proc gum_process_set_code_signing_policy*(policy: GumCodeSigningPolicy)
+proc gum_process_query_libc_name*(): cstring
+proc gum_process_is_debugger_attached*(): bool
+proc gum_process_get_id*():  GumProcessId
+proc gum_process_get_current_thread_id*(): GumThreadId
+proc gum_process_has_thread*(threadId: GumThreadId): bool
+proc gum_process_modify_thread*(threadId: GumThreadId, fn: GumModifyThreadFunc, userData: pointer): bool
+proc gum_process_enumerate_threads*(fn: GumFoundThreadFunc, userData: pointer)
+proc gum_process_resolve_module_pointer*(pt: pointer, path: cstring, memRange: ptr GumMemoryRange): bool
+proc gum_process_enumerate_modules*(fn: GumFoundModuleFunc, userData: pointer)
+proc gum_process_enumerate_ranges*(prot: GumPageProtection, fn: GumFoundRangeFunc, userData: pointer)
+proc gum_process_enumerate_malloc_ranges*(fn: GumFoundMallocRangeFunc, userData: pointer)
+proc gum_thread_try_get_ranges*(ranges: ptr GumMemoryRange, maxLength: uint): uint
+proc gum_thread_get_system_error*(): int
+proc gum_thread_set_system_error*(value: int)
+proc gum_thread_suspend*(threadId: GumThreadId, error: ptr ptr GError): bool
+proc gum_thread_resume*(threadId: GumThreadId, error: ptr ptr GError): bool
+proc gum_module_load*(moduleName: cstring, error: ptr ptr GError): bool
+proc gum_module_ensure_initialized*(moduleName: cstring): bool
+proc gum_module_enumerate_imports*(moduleName: cstring, fn: GumFoundImportFunc, userData: pointer)
+proc gum_module_enumerate_exports*(moduleName: cstring, fn: GumFoundExportFunc, userData: pointer)
+proc gum_module_enumerate_symbols*(moduleName: cstring, fn: GumFoundSymbolFunc, userData: pointer)
+proc gum_module_enumerate_ranges*(moduleName: cstring, prot: GumPageProtection, fn: GumFoundRangeFunc, userData: pointer)
+proc gum_module_find_base_address*(moduleName: cstring): GumAddress
+proc gum_module_find_export_by_name*(moduleName: cstring, symbolName: cstring): GumAddress
+proc gum_module_find_symbol_by_name*(moduleName: cstring, symbolName: cstring): GumAddress
+
+proc gum_code_signing_policy_to_string*(policy: GumCodeSigningPolicy): cstring
+
+proc gum_module_details_copy*(module: ptr GumModuleDetails): ptr GumModuleDetails
+proc gum_module_details_free*(module: ptr GumModuleDetails)
+
+proc gum_symbol_type_to_string*(kind: GumSymbolType): cstring
+
+#[ gumreturnaddress.h ]#
+proc gum_return_address_details_from_address*(address: GumReturnAddress, details: ptr GumReturnAddressDetails): bool
+
+proc gum_return_address_array_is_equal*(array1: ptr GumReturnAddressArray, array2: ptr GumReturnAddressArray): bool
+
+#[ gumspinlock.h ]#
+proc gum_spinlock_init*(spinlock: ptr GumSpinlock)
+
+proc gum_spinlock_acquire*(spinlock: ptr GumSpinlock)
+proc gum_spinlock_release*(spinlock: ptr GumSpinlock)
+
+#[ gumstalker.h ]#
+
+proc gum_stalker_is_supported*(): bool
+
+proc gum_stalker_activate_experimental_unwind_support*()
+
+proc gum_stalker_new*(): ptr GumStalker
+
+proc gum_stalker_exclude*(self: ptr GumStalker, memRange: ptr GumMemoryRange)
+
+proc gum_stalker_get_trust_threshold*(self: ptr GumStalker): int
+proc gum_stalker_set_trust_threshold*(self: ptr GumStalker, trustThreshold: int)
+
+proc gum_stalker_flush*(self: ptr GumStalker)
+proc gum_stalker_stop*(self: ptr GumStalker)
+proc gum_stalker_garbage_collect*(self: ptr GumStalker): bool
+
+proc gum_stalker_follow_me*(self: ptr GumStalker, transformer: ptr GumStalkerTransformer, sink: ptr GumEventSink)
+proc gum_stalker_unfollow_me*(self: ptr GumStalker)
+proc gum_stalker_is_following_me*(self: ptr GumStalker): bool
+
+proc gum_stalker_follow*(self: ptr GumStalker, threadId: GumThreadId, transformer: ptr GumStalkerTransformer, sink: ptr GumEventSink)
+proc gum_stalker_unfollow*(self: ptr GumStalker, threadId: GumThreadId)
+
+proc gum_stalker_activate*(self: ptr GumStalker, target: pointer)
+proc gum_stalker_deactivate*(self: ptr GumStalker)
+
+proc gum_stalker_set_observer*(self: ptr GumStalker, observer: ptr GumStalkerObserver)
+
+proc gum_stalker_prefetch*(self: ptr GumStalker, address: pointer , recycleCount: int)
+proc gum_stalker_prefetch_backpatch*(self: ptr GumStalker, notification: ptr GumBackpatch)
+proc gum_stalker_recompile*(self: ptr GumStalker, address: pointer)
+
+proc gum_stalker_backpatch_get_from*(backpatch: ptr GumBackpatch): pointer
+proc gum_stalker_backpatch_get_to*(backpatch: ptr GumBackpatch): pointer
+
+proc gum_stalker_invalidate*(self: ptr GumStalker, address: pointer)
+proc gum_stalker_invalidate_for_thread*(self: ptr GumStalker, threadId: GumThreadId, address: pointer)
+
+proc gum_stalker_add_call_probe*(self: ptr GumStalker, targetAddress: pointer, callback: GumCallProbeCallback, data: pointer, notify: GDestroyNotify): GumProbeId
+proc gum_stalker_remove_call_probe*(self: ptr GumStalker, id: GumProbeId)
+
+proc gum_stalker_transformer_make_default*(): ptr GumStalkerTransformer
+proc gum_stalker_transformer_make_from_callback*(callback: GumStalkerTransformerCallback, data: pointer, dataDestroy: GDestroyNotify): ptr GumStalkerTransformer
+
+proc gum_stalker_transformer_transform_block*(self: ptr GumStalkerTransformer, iter: ptr GumStalkerIterator, otuput: ptr GumStalkerOutput)
+
+proc gum_stalker_iterator_next*(self: ptr GumStalkerIterator, insn: ptr pointer): bool
+proc gum_stalker_iterator_keep*(self: ptr GumStalkerIterator)
+proc gum_stalker_iterator_put_callout*(self: ptr GumStalkerIterator, callout: GumStalkerCallout, data: pointer, dataDestroy: GDestroyNotify)
+
+proc gum_stalker_observer_notify_backpatch*(observer: ptr GumStalkerObserver, backpatch: ptr GumBackpatch , size: csize_t)
+
+proc gum_stalker_observer_switch_callback*(observer: ptr GumStalkerObserver, fromAddress: pointer, startAdress: pointer, fromInsn: pointer, target: ptr pointer)
+
+#[ gumsymbolutil.h ]#
+proc gum_symbol_details_from_address*(address: pointer, details: ptr GumDebugSymbolDetails): bool
+proc gum_symbol_name_from_address*(address: pointer): cstring
+
+proc gum_find_function*(name: cstring): pointer
+proc gum_find_functions_named* (name: cstring): ptr GArray
+proc gum_find_functions_matching* (s: cstring): ptr GArray
+proc gum_load_symbols*(path: cstring): bool
+
+#{ gumtls.h ]#
+proc gum_tls_key_new*(): GumTlsKey
+proc gum_tls_key_free*(key: GumTlsKey)
+
+proc gum_tls_key_get_value*(key: GumTlsKey): pointer
+proc gum_tls_key_set_value*(key: GumTlsKey, value: pointer)
 
 {.pop.}
 
