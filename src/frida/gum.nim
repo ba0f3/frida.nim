@@ -1,7 +1,13 @@
 #when not compileOption("threads"):
 #  {.error: "Frida gumjs library require --threads:on to run".}
 {.experimental: "codeReordering".}
-{.passL: "-lfrida-gum -latomic -lresolv".}
+
+const FRIDA_GUM_PATH {.strdefine.} = ""
+
+when FRIDA_GUM_PATH == "":
+  {.passL: "-lfrida-gum -latomic -lresolv".}
+else:
+  {.passL: FRIDA_GUM_PATH & " -latomic -lresolv".}
 
 import ./private/common
 export common
@@ -9,17 +15,101 @@ export common
 
 const
   GUM_MAX_PATH = 260
-  GUM_MAX_TYPE_NAME = 16
+  #GUM_MAX_TYPE_NAME = 16
   GUM_MAX_SYMBOL_NAME = 2048
 
-  GUM_MAX_THREADS = 768
-  GUM_MAX_CALL_DEPTH = 32
+  #GUM_MAX_THREADS = 768
+  #GUM_MAX_CALL_DEPTH = 32
   GUM_MAX_BACKTRACE_DEPTH = 16
 
 type
   #[ gumdef.h ]#
   GumOS* = uint
   GumCpuContext* = object
+    when hostCPU == "i386":
+      eip*: uint32
+      edi*: uint32
+      esi*: uint32
+      ebp*: uint32
+      esp*: uint32
+      ebx*: uint32
+      edx*: uint32
+      ecx*: uint32
+      eax*: uint32
+    elif hostCPU == "amd64":
+      rip*: uint64
+      r15*: uint64
+      r14*: uint64
+      r13*: uint64
+      r12*: uint64
+      r11*: uint64
+      r10*: uint64
+      r9*: uint64
+      r8*: uint64
+      rdi*: uint64
+      rsi*: uint64
+      rbp*: uint64
+      rsp*: uint64
+      rbx*: uint64
+      rdx*: uint64
+      rcx*: uint64
+      rax*: uint64
+    elif hostCPU == "arm":
+      pc*: uint32
+      sp*: uint32
+      cpsr*: uint32
+      r8*: uint32
+      r9*: uint32
+      r10*: uint32
+      r11*: uint32
+      r12*: uint32
+      v*: array[16, GumArmVectorReg]
+      padding: uint32
+      r*: array[8, uint32]
+      lr*: uint32
+    elif hostCPU == "arm64":
+      pc*: uint64
+      sp*: uint64
+      nzcv*: uint64
+      x*: array[29, uint64]
+      fp*: uint64
+      lr*: uint64
+    elif hostCPU == "mips":
+      pc*: csize_t
+      gp*: csize_t
+      sp*: csize_t
+      fp*: csize_t
+      ra*: csize_t
+      hi*: csize_t
+      lo*: csize_t
+      at*: csize_t
+      v0*: csize_t
+      v1*: csize_t
+      a0*: csize_t
+      a1*: csize_t
+      a2*: csize_t
+      a3*: csize_t
+      t0*: csize_t
+      t1*: csize_t
+      t2*: csize_t
+      t3*: csize_t
+      t4*: csize_t
+      t5*: csize_t
+      t6*: csize_t
+      t7*: csize_t
+      t8*: csize_t
+      t9*: csize_t
+      s0*: csize_t
+      s1*: csize_t
+      s2*: csize_t
+      s3*: csize_t
+      s4*: csize_t
+      s5*: csize_t
+      s6*: csize_t
+      s7*: csize_t
+      k0*: csize_t
+      k1*: csize_t
+
   GumAddress* = uint64
 
   GumCpuType* = enum

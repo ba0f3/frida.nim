@@ -1,7 +1,12 @@
 when not compileOption("threads"):
   {.error: "Frida core library require --threads:on to run".}
 
-{.passL: "-lfrida-core -latomic -lresolv".}
+const  {.strdefine.} = ""
+
+when FRIDA_CORE_PATH == "":
+  {.passL: "-lfrida-core -latomic -lresolv".}
+else:
+  {.passL: FRIDA_CORE_PATH & " -latomic -lresolv".}
 
 import private/common
 export privatte/common
