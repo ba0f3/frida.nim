@@ -1,7 +1,3 @@
-#when not compileOption("threads"):
-#  {.error: "Frida gumjs library require --threads:on to run".}
-{.experimental: "codeReordering".}
-
 const FRIDA_GUM_PATH {.strdefine.} = ""
 
 when FRIDA_GUM_PATH == "":
@@ -111,6 +107,10 @@ type
       k1*: csize_t
 
   GumAddress* = uint64
+
+  GumObject* = object
+    refCount*: int
+    finalize*: proc(obj: ptr GumObject)
 
   GumCpuType* = enum
     GUM_CPU_INVALID
@@ -292,7 +292,25 @@ type
 
   #[ guminvocationcontext.h ]#
   GumInvocationBackend* = object
+    getPointCut*: proc(context: ptr GumInvocationContext): GumPointCut
+
+    getThreadId*: proc(context: ptr GumInvocationContext): GumThreadId
+    getDepth*: proc(context: ptr GumInvocationContext): uint
+
+    getListenerThreadData*: proc(context: ptr GumInvocationContext, requiredSize: csize_t): pointer
+    getListenerFunctionData*: proc(context: ptr GumInvocationContext): pointer
+    getListenerInvocationData*: proc(context: ptr GumInvocationContext, requiredSize: csize_t): pointer
+
+    getReplacementData*: proc(context: ptr GumInvocationContext): pointer
+
+    state*: pointer
+    data*: pointer
+
   GumInvocationContext* = object
+    function*: pointer
+    cpuContext*: ptr GumCpuContext
+    systemError*: int
+    backend*: GumInvocationBackend
 
   GumPointCut* = enum
     GUM_POINT_ENTER
@@ -300,6 +318,13 @@ type
 
   #[ guminvocationlistener.h ]#
   GumInvocationListener* = object
+    parent*: GumObject
+
+    onEnter*: GumInvocationCallback
+    onLeave*: GumInvocationCallback
+
+    data*: pointer
+    dataDestory*: GDestroyNotify
 
   GumInvocationCallback* = proc(context: ptr GumInvocationContext, userData: pointer)
 
