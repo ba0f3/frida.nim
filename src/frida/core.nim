@@ -1,7 +1,7 @@
 when not compileOption("threads"):
   {.error: "Frida core library require --threads:on to run".}
 
-const  {.strdefine.} = ""
+const FRIDA_CORE_PATH {.strdefine.} = ""
 
 when FRIDA_CORE_PATH == "":
   {.passL: "-lfrida-core -latomic -lresolv".}
@@ -9,7 +9,7 @@ else:
   {.passL: FRIDA_CORE_PATH & " -latomic -lresolv".}
 
 import private/common
-export privatte/common
+export common
 
 type
   FridaDeviceManager* = object
