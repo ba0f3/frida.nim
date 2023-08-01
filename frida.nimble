@@ -1,5 +1,5 @@
 # Package
-version       = "0.2.1"
+version       = "0.2.2"
 author        = "Huy Doan"
 description   = "Frida wrapper"
 license       = "MIT"
