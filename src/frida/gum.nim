@@ -18,7 +18,7 @@ const
   #GUM_MAX_CALL_DEPTH = 32
   GUM_MAX_BACKTRACE_DEPTH = 16
 
-typef
+type
   #[ gumdef.h ]#
   GumOS* = uint
   GumCpuContext* = object
