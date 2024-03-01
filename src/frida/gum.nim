@@ -18,7 +18,7 @@ const
   #GUM_MAX_CALL_DEPTH = 32
   GUM_MAX_BACKTRACE_DEPTH = 16
 
-type
+typef
   #[ gumdef.h ]#
   GumOS* = uint
   GumCpuContext* = object
@@ -232,13 +232,42 @@ type
     GUM_EXEC        = (1 shl 2)
     GUM_BLOCK       = (1 shl 3)
     GUM_COMPILE     = (1 shl 4)
-  GumEvent* = object
+
+  GumEvent* {.union.} = object
     kind*: GumEventType
+    `any`*: GumEventType
+    call*: GumCallEvent
+    ret*: GumRetEvent
+    exec*: GumExecEvent
+    `block`*: GumBlockEvent
+    compile*: GumCompileEvent
+
+
   GumCallEvent* = object
+    kind*: GumEventType
+    location*: pointer
+    target*: pointer
+    depth*: int
+
   GumRetEvent* = object
+    kind*: GumEventType
+    location*: pointer
+    target*: pointer
+    depth*: int
+
   GumExecEvent* = object
+    kind*: GumEventType
+    location*: pointer
+
   GumBlockEvent* = object
+    kind*: GumEventType
+    start*: pointer
+    `end`*: pointer
+
   GumCompileEvent* = object
+    kind*: GumEventType
+    start*: pointer
+    `end`*: pointer
 
   #[ gumeventsink.h]#
   GumEventSink* = object
